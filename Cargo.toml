@@ -1,0 +1,6 @@
+[package]
+name = "net-uio"
+version = "0.1.0"
+authors = ["Dariusz Sosnowski <dsosnowski@dsosnowski.pl>"]
+
+[dependencies]

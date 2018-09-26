@@ -1,0 +1,9 @@
+# .gitignore
+
+# rust
+/target
+**/*.rs.bk
+
+# vim
+*.swo
+*.swp
