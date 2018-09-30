@@ -5,3 +5,4 @@ authors = ["Dariusz Sosnowski <dsosnowski@dsosnowski.pl>"]
 
 [dependencies]
 byteorder = "1.2.6"
+libc = "0.2.43"
