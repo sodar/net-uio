@@ -7,6 +7,10 @@ use std::io::Read;
 use std::fs::OpenOptions;
 use std::os::unix::io::IntoRawFd;
 
+mod other;
+
+use other::print_config_space;
+
 static DEV_PATH: &str = "/dev/uio0";
 static CFG_PATH: &str = "/sys/class/uio/uio0/device/config";
 static BAR0_PATH: &str = "/sys/class/uio/uio0/device/resource0";
@@ -17,18 +21,6 @@ fn read_u16(buf: &[u8], off: usize) -> u16 {
 
 fn read_u32(buf: &[u8], off: usize) -> u32 {
     (&buf[off .. off + 4]).read_u32::<LittleEndian>().unwrap()
-}
-
-fn print_config_space(buf: &[u8; 256]) {
-    for i in 0..32 {
-        let ii = i * 4;
-        print!("net-uio: cfg[{:02x}]:", ii);
-        for j in 0..4 {
-            let jj = ii + j;
-            print!(" {:02x}", buf[jj]);
-        }
-        print!("\n");
-    }
 }
 
 fn main() {
