@@ -2,14 +2,14 @@ extern crate byteorder;
 extern crate libc;
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use libc::*;
 use std::io::Read;
 use std::fs::OpenOptions;
-use std::os::unix::io::IntoRawFd;
 
 mod other;
+mod resource;
 
 use other::print_config_space;
+use resource::Resource;
 
 static DEV_PATH: &str = "/dev/uio0";
 static CFG_PATH: &str = "/sys/class/uio/uio0/device/config";
@@ -56,68 +56,26 @@ fn main() {
     println!("net-uio: bar_reg, low = {:#010x}, high = {:#010x}",
         bar_reg_low, bar_reg_high);
 
-    let bar0 = OpenOptions::new().read(true).write(true)
-        .open(BAR0_PATH)
-        .expect("Unable to open PCI resource file");
-    let bar0_fd = bar0.into_raw_fd();
+    let mut resource0 = Resource::new(BAR0_PATH).unwrap();
+    println!("net-uio: resource0 = {:?}", resource0);
 
-    let addr: *mut c_void = 0 as *mut c_void;
-    let len: size_t = 131072;
-    let prot = PROT_READ | PROT_WRITE;
-    let flags = MAP_SHARED;
-    let fd: c_int = bar0_fd;
-    let offset: off_t = 0;
+    let ctrl_reg = resource0.read_register(0);
+    println!("net-uio: CTRL = {:#010x}", ctrl_reg);
 
-    let m: *mut c_void;
-    unsafe {
-        m = mmap(addr, len, prot, flags, fd, offset)
-    }
-    println!("net-uio: mmap result = {:?}", m);
+    let ims_reg = resource0.read_register(0xd0);
+    println!("net-uio: IMS = {:#010x}", ims_reg);
 
-    let bar0_ptr = m as *mut u32;
+    resource0.write_register(0xd0, 0b100);
+    println!("net-uio: IMS set LSC bit (link status change)");
 
-    unsafe {
-        let ctrl_reg = bar0_ptr.offset(0);
-        println!("net-uio: CTRL pointer = {:?}", ctrl_reg);
-        println!("net-uio: CTRL = {:#010x}", *ctrl_reg);
-    }
+    let icr_reg = resource0.read_register(0xc0);
+    println!("net-uio: ICR = {:#010x}", icr_reg);
 
-    unsafe {
-        let status_reg = bar0_ptr.offset(2);
-        println!("net-uio: STATUS pointer = {:?}", status_reg);
-        println!("net-uio: STATUS = {:#010x}", *status_reg);
-    }
+    let icr_reg = resource0.read_register(0xc0);
+    println!("net-uio: ICR = {:#010x}", icr_reg);
 
-    // NOTE: Manipulating Interrupt Mask Set/Read register
-    unsafe {
-        let ims_reg = bar0_ptr.offset(52);
-        println!("net-uio: IMS pointer = {:?}", ims_reg);
-        println!("net-uio: IMS = {:#010x}", *ims_reg);
-
-        let ims_reg_value: u32 = 0b100;
-        *ims_reg = ims_reg_value;
-        println!("net-uio: IMS setting LSC bit (link status change)");
-        println!("net-uio: IMS = {:#010x}", *ims_reg);
-    }
-
-    // NOTE: Reading Interrupt Mask Cause Read Register
-    unsafe {
-        let icr_reg = bar0_ptr.offset(48);
-        println!("net-uio: ICR pointer = {:?}", icr_reg);
-        println!("net-uio: ICR = {:#010x}", *icr_reg);
-        println!("net-uio: ICR = {:#010x}", *icr_reg);
-
-        //let icr_reg_value: u32 = 0b100;
-        //*icr_reg = icr_reg_value;
-        //println!("net-uio: ICR, ");
-    }
-
-    let mut buffer = [0u8; 4];
-    assert_eq!(uio.read(&mut buffer).unwrap(), 4);
-
-    unsafe {
-        assert_eq!(munmap(m, 131072), 0);
-    }
-
-    unsafe { assert_eq!(close(bar0_fd), 0); }
+    let mut buf = [0u8; 4];
+    uio.read(&mut buf).unwrap();
+    let interrupts = read_u32(&buf, 0x0);
+    println!("net-uio: Interrupts = {}", interrupts);
 }
