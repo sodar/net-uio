@@ -1,8 +1,8 @@
 extern crate byteorder;
 extern crate libc;
 
-use byteorder::{LittleEndian, ReadBytesExt};
-use std::io::Read;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use std::io::{Read, Seek, SeekFrom};
 use std::fs::OpenOptions;
 
 mod other;
@@ -47,6 +47,13 @@ fn main() {
     let command_reg = read_u16(&buffer, 4);
     println!("net-uio: command_reg = {:#06x}", command_reg);
 
+    // Before waiting for any interrupt, `Interrupt Disable` bit of PCI command
+    // register must be cleared. Interrupts are triggered if and only if
+    // `Interrupt Disable` is cleared and appropriate bit is set in IMS register.
+    let command_enable = !0x0400;
+    cfg.seek(SeekFrom::Start(4)).unwrap();
+    cfg.write_u16::<LittleEndian>(command_enable).unwrap();
+
     let status_reg = read_u16(&buffer, 6);
     println!("net-uio: status_reg  = {:#06x}", status_reg);
 
@@ -59,23 +66,33 @@ fn main() {
     let mut resource0 = Resource::new(BAR0_PATH).unwrap();
     println!("net-uio: resource0 = {:?}", resource0);
 
+    // Read CTRL - control register.
     let ctrl_reg = resource0.read_register(0);
     println!("net-uio: CTRL = {:#010x}", ctrl_reg);
 
+    // Read STATUS - device status register.
+    let status_reg = resource0.read_register(0x8);
+    println!("net-uio: STATUS = {:#010x}", status_reg);
+
+    // Read IMS - interrupt mask set/read register.
     let ims_reg = resource0.read_register(0xd0);
     println!("net-uio: IMS = {:#010x}", ims_reg);
 
+    // Enable interrupts for list status changes.
     resource0.write_register(0xd0, 0b100);
     println!("net-uio: IMS set LSC bit (link status change)");
 
-    let icr_reg = resource0.read_register(0xc0);
-    println!("net-uio: ICR = {:#010x}", icr_reg);
-
-    let icr_reg = resource0.read_register(0xc0);
-    println!("net-uio: ICR = {:#010x}", icr_reg);
-
+    // Wait for any interrupt.
     let mut buf = [0u8; 4];
     uio.read(&mut buf).unwrap();
     let interrupts = read_u32(&buf, 0x0);
     println!("net-uio: Interrupts = {}", interrupts);
+
+    // Read ICR - interrupt cause read register. Reading it acknowledges any pending
+    // interrupt events, thus reads that follow will read 0 on particular bits.
+    let icr_reg = resource0.read_register(0xc0);
+    println!("net-uio: ICR = {:#010x}", icr_reg);
+
+    let icr_reg = resource0.read_register(0xc0);
+    println!("net-uio: ICR = {:#010x}", icr_reg);
 }
