@@ -40,3 +40,20 @@
     # LSC interrupt should be generated
     # bit 1 in STATUS should be equal to 0 - link is DOWN
     ```
+
+
+## Interrupt handling
+
+Summary of the interrupt handling:
+
+- Set to `1` appropriate interrupt bits in `IMS` register of NIC register map.
+    - Example: Bit 2 of `IMS` is `Link Status Change` interrupt, triggered every time link status changes from up to down, or otherwise.
+- Read `ICR` NIC register to clear it.
+    - `ICR` register holds information about what interrupt causing events occurred.
+      Interrupt line is asserted if and only if appropriate `ICR` bit is zeroed and appropriate bit of `IMS` is set to `1`.
+- Reenable interrupts by writing `0` to `Interrupt disable` bit in PCI command register.
+- Read from UIO device file to wait for any interrupts.
+    - After interrupt has been triggered, `uio_pci_generic` disables interrupts.
+- Software has to acknowledge the interrupts before reenabling them.
+  Without aknowledging, those interrupts will be triggered again.
+  Interrupts can be acknowledged by reading from `ICR` register.

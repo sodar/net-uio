@@ -1,15 +1,13 @@
 extern crate byteorder;
 extern crate libc;
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use std::io::{Read, Seek, SeekFrom};
+use byteorder::{LittleEndian, ReadBytesExt};
+use std::io::Read;
 
 mod device;
-mod other;
 mod resource;
 
 use device::UioPciDevice;
-use other::print_config_space;
 use resource::Resource;
 
 static DEV_PATH: &str = "/dev/uio0";
@@ -31,8 +29,6 @@ fn main() {
     let bytes = device.cfg.read(&mut buffer).unwrap();
     println!("net-uio: Read {} bytes from {}", bytes, CFG_PATH);
 
-    print_config_space(&buffer);
-
     let vendor_id = read_u16(&buffer, 0);
     println!("net-uio: vendor_id   = {:#06x}", vendor_id);
 
@@ -41,13 +37,6 @@ fn main() {
 
     let command_reg = read_u16(&buffer, 4);
     println!("net-uio: command_reg = {:#06x}", command_reg);
-
-    // Before waiting for any interrupt, `Interrupt Disable` bit of PCI command
-    // register must be cleared. Interrupts are triggered if and only if
-    // `Interrupt Disable` is cleared and appropriate bit is set in IMS register.
-    let command_enable = !0x0400;
-    device.cfg.seek(SeekFrom::Start(4)).unwrap();
-    device.cfg.write_u16::<LittleEndian>(command_enable).unwrap();
 
     let status_reg = read_u16(&buffer, 6);
     println!("net-uio: status_reg  = {:#06x}", status_reg);
@@ -77,17 +66,13 @@ fn main() {
     resource0.write_register(0xd0, 0b100);
     println!("net-uio: IMS set LSC bit (link status change)");
 
-    // Wait for any interrupt.
-    let mut buf = [0u8; 4];
-    device.uio.read(&mut buf).unwrap();
-    let interrupts = read_u32(&buf, 0x0);
-    println!("net-uio: Interrupts = {}", interrupts);
+    loop {
+        device.reenable_interrupts();
 
-    // Read ICR - interrupt cause read register. Reading it acknowledges any pending
-    // interrupt events, thus reads that follow will read 0 on particular bits.
-    let icr_reg = resource0.read_register(0xc0);
-    println!("net-uio: ICR = {:#010x}", icr_reg);
+        let interrupts = device.wait_for_interrupts();
+        println!("net-uio: interrupt counter = {}", interrupts);
 
-    let icr_reg = resource0.read_register(0xc0);
-    println!("net-uio: ICR = {:#010x}", icr_reg);
+        let icr_reg = resource0.read_register(0xc0);
+        println!("net-uio: ICR = {:#010x}", icr_reg);
+    }
 }
