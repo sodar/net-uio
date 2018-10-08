@@ -18,10 +18,6 @@ fn read_u16(buf: &[u8], off: usize) -> u16 {
     (&buf[off .. off + 2]).read_u16::<LittleEndian>().unwrap()
 }
 
-fn read_u32(buf: &[u8], off: usize) -> u32 {
-    (&buf[off .. off + 4]).read_u32::<LittleEndian>().unwrap()
-}
-
 fn main() {
     let mut device = UioPciDevice::new(DEV_PATH, CFG_PATH);
 
@@ -40,12 +36,6 @@ fn main() {
 
     let status_reg = read_u16(&buffer, 6);
     println!("net-uio: status_reg  = {:#06x}", status_reg);
-
-    let bar_reg_low = read_u32(&buffer, 0x10);
-    let bar_reg_high = read_u32(&buffer, 0x14);
-
-    println!("net-uio: bar_reg, low = {:#010x}, high = {:#010x}",
-        bar_reg_low, bar_reg_high);
 
     let mut resource0 = Resource::new(BAR0_PATH).unwrap();
     println!("net-uio: resource0 = {:?}", resource0);
