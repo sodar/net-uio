@@ -7,6 +7,23 @@ use std::fs::File;
 use std::io::{BufReader, BufRead, Error, Read, Seek, SeekFrom};
 use std::mem;
 
+fn map_huge_page() -> *mut c_void {
+    let addr = 0 as *mut c_void;
+    let length = (2 * 1024 * 1024) as size_t;
+    let prot = (PROT_READ | PROT_WRITE) as c_int;
+    let flags = (MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB) as c_int;
+    let fd = -1 as c_int;
+    let offset = 0 as off_t;
+
+    let result = unsafe { mmap(addr, length, prot, flags, fd, offset) };
+
+    if result == MAP_FAILED {
+        panic!("{:?}", Error::last_os_error());
+    } else {
+        result
+    }
+}
+
 fn main() {
     let ret = unsafe { mlockall(MCL_CURRENT | MCL_FUTURE) };
     if ret == -1 {
@@ -35,7 +52,15 @@ fn main() {
         }
     }
 
-    println!("physmap: buf = {:?}", buf);
+    println!("physmap: mmap; buf = {:?}", buf);
+
+    // Attempting to map a huge page
+    let huge = map_huge_page();
+    println!("physmap: huge; buf = {:?}", huge);
+    {
+        let ptr = huge as *mut u32;
+        unsafe { *ptr = 0xefbeadde };
+    }
 
     // Code below is kind of not needed since I already know the virtual address
     // which I want. But I did it anyway.
@@ -61,6 +86,8 @@ fn main() {
 
     println!("physmap: Analyzing /proc/self/pagemap");
     let mut pagemap = File::open("/proc/self/pagemap").unwrap();
+
+    println!("physmap: Modyfing memory under address {:?}", buf);
     let pagesize = 4096;
     let offset = (buf as u64) / pagesize * (mem::size_of::<u64>() as u64);
     pagemap.seek(SeekFrom::Start(offset)).unwrap();
@@ -71,10 +98,28 @@ fn main() {
         println!("physmap: page.data = {:#x}", data);
         println!("physmap: page.data = {:#b}", data);
 
-        // NOTE: Theoretically << 9 is correct, because PFN is 0:54.
-        // It appears that 3 most significant bits are zeroed always??
+        // NOTE: PFN is calculated simply as (phys_addr >> PAGE_SHIFT). By default, PAGE_SHIFT = 12.
         // NOTE: To check if address is mapped correctly - run pmemsave on `phys` address
         // inside q QEMU monitor.
+        let phys = data << 12;
+        println!("physmap: page.phys = {:#x}", phys);
+        println!("physmap: page.phys = {:#b}", phys);
+
+        let is_present = (data & (1 << 63)) >> 63;
+        println!("physmap: page.is_present = {}", is_present);
+    }
+
+    println!("physmap: Modyfing memory under address {:?}", huge);
+    let pagesize = 4096;
+    let offset = (huge as u64) / pagesize * (mem::size_of::<u64>() as u64);
+    pagemap.seek(SeekFrom::Start(offset)).unwrap();
+    {
+        let mut buf = [0u8; 8];
+        pagemap.read(&mut buf).unwrap();
+        let data: u64 = (&buf[..]).read_u64::<LittleEndian>().unwrap();
+        println!("physmap: page.data = {:#x}", data);
+        println!("physmap: page.data = {:#b}", data);
+
         let phys = data << 12;
         println!("physmap: page.phys = {:#x}", phys);
         println!("physmap: page.phys = {:#b}", phys);

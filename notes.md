@@ -57,3 +57,31 @@ Summary of the interrupt handling:
 - Software has to acknowledge the interrupts before reenabling them.
   Without aknowledging, those interrupts will be triggered again.
   Interrupts can be acknowledged by reading from `ICR` register.
+
+
+## Huge pages
+
+Here are some quick notes regarding huge pages.
+
+```bash
+# Show huge page statistics.
+cat /proc/meminfo | grep Huge
+
+# Allocate huge pages at runtime.
+echo 16 > /proc/sys/vm/nr_hugepages
+
+# Mount hugetlbfs for mmaping.
+mount -t hugetlbfs -o size=100%,min_size=100%,nr_inodes=16 none /mnt/huge
+
+# After mounting, in /proc/meminfo, `HugePages_Rsvd` should be equal to `HugePages_Total`.
+# This means, that whole huge pool has been reserved for allocation and the following allocations
+# will succeed.
+
+# IMPORTANT: Stopped using this method, since I could find quickly how to create a proper file.
+#            Unmoount hugetlbfs to proceed.
+
+# Map huge page using anonymous mapping by providing:
+# - FLAGS = PRIVATE | ANONYMOUS | HUGETLB
+
+# After mapping, in /proc/meminfo, `HugePages_Free` should reduce by a number of mapped pages.
+```
