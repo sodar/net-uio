@@ -5,6 +5,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::Read;
 
 mod device;
+mod memory;
 mod resource;
 
 use device::UioPciDevice;
@@ -97,6 +98,10 @@ fn main() {
     // Enable interrupts for list status changes.
     resource0.write_register(IMS, 0b100);
     println!("net-uio: IMS set LSC bit (link status change)");
+
+    let mut mem = memory::allocate_dma_memory(2 * 1024 * 1024);
+    println!("net-uio: RX ring, mem = {:?}", mem);
+    println!("net-uio: RX ring, pa = {:#x}", mem.get_phys_addr());
 
     loop {
         device.reenable_interrupts();
