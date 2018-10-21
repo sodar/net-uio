@@ -43,9 +43,7 @@ fn read_u16(buf: &[u8], off: usize) -> u16 {
     (&buf[off .. off + 2]).read_u16::<LittleEndian>().unwrap()
 }
 
-fn main() {
-    let mut device = UioPciDevice::new(DEV_PATH, CFG_PATH);
-
+fn load_and_print_pci_config(device: &mut UioPciDevice) {
     let mut buffer = [0u8; 256];
     let bytes = device.cfg.read(&mut buffer).unwrap();
     println!("net-uio: Read {} bytes from {}", bytes, CFG_PATH);
@@ -61,6 +59,11 @@ fn main() {
 
     let status_reg = read_u16(&buffer, 6);
     println!("net-uio: status_reg  = {:#06x}", status_reg);
+}
+
+fn main() {
+    let mut device = UioPciDevice::new(DEV_PATH, CFG_PATH);
+    load_and_print_pci_config(&mut device);
 
     let mut resource0 = Resource::new(BAR0_PATH).unwrap();
     println!("net-uio: resource0 = {:?}", resource0);
