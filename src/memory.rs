@@ -10,7 +10,8 @@ use std::mem;
 
 #[derive(Debug)]
 pub struct Memory {
-    va: *mut c_void,
+    // TODO: Encapsulate plz.
+    pub va: *mut c_void,
     size: usize,
     pa: Option<usize>,
 }
@@ -22,6 +23,7 @@ impl Drop for Memory {
 }
 
 impl Memory {
+    #[allow(dead_code)]
     pub fn get_phys_addr(&mut self) -> usize {
         match self.pa {
             Some(addr) => addr,
